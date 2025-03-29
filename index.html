@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Generator Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        input[type="color"] {
+            -webkit-appearance: none;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            width: 100%;
+            height: 40px;
+            cursor: pointer;
+        }
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 0.25rem;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #d1d5db;
+            border-radius: 4px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #3b82f6;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        #qrcode canvas, #qrcode img {
+            margin: 0 auto;
+        }
+        /* Estilos para el modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            max-width: 90%;
+            max-height: 90%;
+            overflow: auto;
+            text-align: center;
+        }
+        .close-modal {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-md overflow-hidden">
+            <!-- Header -->
+            <div class="bg-blue-600 text-white px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-qrcode text-2xl"></i>
+                        <h1 class="text-2xl font-bold">QR Generator Pro</h1>
+                    </div>
+                    <button id="theme-toggle" class="p-2 rounded-full hover:bg-blue-700 transition">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+                <p class="mt-1 opacity-90">Genera códigos QR personalizados al instante</p>
+            </div>
+
+            <!-- Main Content -->
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Input Section -->
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Contenido del QR</label>
+                            <textarea id="qr-content" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Ejemplo: https://ejemplo.com"></textarea>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Color del QR</label>
+                                <input type="color" id="qr-color" value="#000000" class="w-full">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Color de fondo</label>
+                                <input type="color" id="bg-color" value="#FFFFFF" class="w-full">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tamaño: <span id="size-value">200</span>px</label>
+                            <input type="range" id="qr-size" min="100" max="500" value="200" class="w-full">
+                        </div>
+
+                        <button id="generate-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-200">
+                            <i class="fas fa-bolt mr-2"></i>Generar Código QR
+                        </button>
+                    </div>
+
+                    <!-- Output Section (ahora oculto, se mostrará en el modal) -->
+                    <div class="hidden">
+                        <div id="qrcode"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para mostrar el QR -->
+    <div id="qr-modal" class="modal">
+        <span class="close-modal">&times;</span>
+        <div class="modal-content">
+            <h2 class="text-xl font-bold mb-4">Tu Código QR</h2>
+            <div id="modal-qrcode" class="mb-6"></div>
+            <div class="grid grid-cols-2 gap-4">
+                <button id="download-png" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-200">
+                    <i class="fas fa-download mr-2"></i>Descargar PNG
+                </button>
+                <button id="download-svg" class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-md transition duration-200">
+                    <i class="fas fa-download mr-2"></i>Descargar SVG
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Elementos del DOM
+            const qrContent = document.getElementById('qr-content');
+            const qrColor = document.getElementById('qr-color');
+            const bgColor = document.getElementById('bg-color');
+            const sizeSlider = document.getElementById('qr-size');
+            const sizeValue = document.getElementById('size-value');
+            const generateBtn = document.getElementById('generate-btn');
+            const modal = document.getElementById('qr-modal');
+            const modalQrcode = document.getElementById('modal-qrcode');
+            const closeModal = document.querySelector('.close-modal');
+            const downloadPng = document.getElementById('download-png');
+            const downloadSvg = document.getElementById('download-svg');
+            const themeToggle = document.getElementById('theme-toggle');
+
+            let qrcode = null;
+
+            // Actualizar valor del tamaño
+            sizeSlider.addEventListener('input', function() {
+                sizeValue.textContent = this.value;
+            });
+
+            // Generar QR
+            generateBtn.addEventListener('click', function() {
+                const content = qrContent.value.trim();
+                if (!content) {
+                    alert('Por favor ingresa algún contenido para generar el QR');
+                    return;
+                }
+
+                // Limpiar QR anterior en el modal
+                modalQrcode.innerHTML = '';
+                
+                // Crear nuevo QR en el modal
+                qrcode = new QRCode(modalQrcode, {
+                    text: content,
+                    width: parseInt(sizeSlider.value),
+                    height: parseInt(sizeSlider.value),
+                    colorDark: qrColor.value,
+                    colorLight: bgColor.value,
+                    correctLevel: QRCode.CorrectLevel.H
+                });
+
+                // Mostrar el modal
+                modal.style.display = 'flex';
+            });
+
+            // Cerrar modal
+            closeModal.addEventListener('click', function() {
+                modal.style.display = 'none';
+            });
+
+            // Cerrar modal al hacer clic fuera del contenido
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+
+            // Descargar PNG
+            downloadPng.addEventListener('click', function() {
+                if (!qrcode) return;
+                
+                const canvas = modalQrcode.querySelector('canvas');
+                if (!canvas) return;
+                
+                const link = document.createElement('a');
+                link.download = 'codigo-qr.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+
+            // Descargar SVG
+            downloadSvg.addEventListener('click', function() {
+                if (!qrcode) return;
+                
+                const content = qrContent.value.trim();
+                if (!content) return;
+                
+                const size = sizeSlider.value;
+                const color = qrColor.value.substring(1); // Remover #
+                const bgColorValue = bgColor.value.substring(1); // Remover #
+                
+                // Crear SVG manualmente
+                const svgContent = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 29 29">
+                        <rect width="29" height="29" fill="#${bgColorValue}"/>
+                        <path fill="#${color}" d="M4 4h7v1H4zM15 4h2v1h-2zM19 4h1v1h-1zM21 4h1v1h-1zM23 4h2v1h-2zM4 5h1v1H4zM6 5h1v1H6zM8 5h1v1H8zM10 5h1v1h-1zM15 5h1v1h-1zM17 5h1v1h-1zM19 5h4v1h-4zM24 5h1v1h-1zM4 6h1v1H4zM6 6h1v1H6zM8 6h1v1H8zM10 6h1v1h-1zM15 6h1v1h-1zM17 6h1v1h-1zM19 6h1v1h-1zM21 6h1v1h-1zM23 6h1v1h-1zM4 7h7v1H4zM15 7h2v1h-2zM19 7h1v1h-1zM21 7h1v1h-1zM23 7h2v1h-2z"/>
+                    </svg>
+                `;
+                
+                const blob = new Blob([svgContent], {type: 'image/svg+xml'});
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = 'codigo-qr.svg';
+                link.href = url;
+                link.click();
+                URL.revokeObjectURL(url);
+            });
+
+            // Toggle de tema oscuro
+            themeToggle.addEventListener('click', function() {
+                document.body.classList.toggle('dark');
+                document.body.classList.toggle('bg-gray-900');
+                document.body.classList.toggle('bg-gray-100');
+                
+                // Cambiar icono
+                const icon = this.querySelector('i');
+                if (document.body.classList.contains('dark')) {
+                    icon.classList.remove('fa-moon');
+                    icon.classList.add('fa-sun');
+                } else {
+                    icon.classList.remove('fa-sun');
+                    icon.classList.add('fa-moon');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
